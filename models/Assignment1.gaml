@@ -24,25 +24,25 @@ species guest skills:[moving] {
 	point target <- nil;
 		
 	reflex moving when: target = nil {
-		do wander; 
+		do wander;
 	}
 	
 	reflex going_to_target when: target != nil {
 		do goto target: target;
 	}
 	
-	reflex getting_hungry when: !is_hungry and !is_thirsty {
-		is_hungry <- flip(0.05);
+	reflex going_to_information_center when: is_hungry or is_thirsty {
 		ask information_center {
 			myself.target <- self.location;
 		}
 	}
 	
+	reflex getting_hungry when: !is_hungry and !is_thirsty {
+		is_hungry <- flip(0.05);
+	}
+	
 	reflex getting_thirsty when: !is_hungry and !is_thirsty {
 		is_thirsty <- flip(0.05);
-		ask information_center {
-			myself.target <- self.location;
-		}
 	}
 	
 	aspect base {
