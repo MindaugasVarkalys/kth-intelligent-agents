@@ -12,6 +12,12 @@ model Assignment1
 
 global {
 	init {
+		create store number:2{
+			isDrinkStore <- true;
+		}
+		create store number:2{
+			isDrinkStore <- false;
+		}
 		create guest number:10;
 		create information_center number:1;
 	}
@@ -62,18 +68,20 @@ species information_center {
 	}
 }
 
-//species store {
-//	
-//	aspect base {
-//		draw square(5) color: 
-//	}
-//}
+species store {
+	bool isDrinkStore;
+	
+	aspect base {
+		draw square(5) color: (isDrinkStore) ? #green : #red;
+	}
+}
 
 experiment my_experiment type:gui {
 	output {
 		display my_display {
 			species guest aspect:base;
 			species information_center aspect:base;
+			species store aspect:base;
 		}
 	}
 }
