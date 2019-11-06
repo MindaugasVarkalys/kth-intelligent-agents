@@ -12,14 +12,17 @@ model Assignment1
 
 global {
 	init {
-		create store number:2{
+		create store number:2 returns: newDrinkStores{
 			isDrinkStore <- true;
 		}
-		create store number:2{
+		create store number:2 returns: newFoodStores{
 			isDrinkStore <- false;
 		}
 		create guest number:10;
-		create information_center number:1;
+		create information_center number:1{
+			foodStores <- newFoodStores;
+			drinkStores <- newDrinkStores;
+		}
 	}
 }
 
@@ -27,17 +30,39 @@ species guest skills:[moving] {
 	
 	bool is_hungry <- flip(0.05);
 	bool is_thirsty <- flip(0.05);
+	bool knows_store_location <- false;
 	point target <- nil;
 		
 	reflex moving when: target = nil {
 		do wander;
 	}
 	
+	reflex goingToStore when: !knows_store_location and (is_hungry or is_thirsty) and !empty(information_center at_distance 0) {
+		
+		ask information_center {
+			
+			if myself.is_hungry {
+				int numFoodStores <- length(self.foodStores);
+				write self.foodStores[rnd(numFoodStores-1)].location;
+				myself.target <- self.foodStores[rnd(numFoodStores-1)].location;
+				myself.knows_store_location <- true;
+				
+			} else if myself.is_thirsty {
+				int numDrinkStores <- length(self.drinkStores);
+				write self.drinkStores[rnd(numDrinkStores-1)].location;
+				myself.target <- self.drinkStores[rnd(numDrinkStores-1)].location;
+				myself.knows_store_location <- true;
+			}
+			
+		}
+		
+	}
+	
 	reflex going_to_target when: target != nil {
 		do goto target: target;
 	}
 	
-	reflex going_to_information_center when: is_hungry or is_thirsty {
+	reflex going_to_information_center when: !knows_store_location and (is_hungry or is_thirsty) {
 		ask information_center {
 			myself.target <- self.location;
 		}
@@ -63,6 +88,9 @@ species guest skills:[moving] {
 }
 
 species information_center {
+	list<store> drinkStores;
+	list<store> foodStores;
+	
 	aspect base {
 		draw square(5) color: #yellow;
 	}
