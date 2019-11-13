@@ -25,15 +25,11 @@ global {
 	}
 }
 
-species Guest skills: [moving, fipa] {
+species Guest skills: [fipa] {
 	
 	string interest <- interests[rnd(length(interests) - 1)];
 	Auctioneer auctioneer <- nil;
 	int budget;
-
-	reflex moving {
-		do wander;
-	}
 	
 	reflex join_auction when: !empty(informs where (each.contents[0] = interest)) and auctioneer = nil {
 		message auction_message <- informs where (each.contents[0] = interest) at 0;
@@ -75,17 +71,23 @@ species Auctioneer skills: [fipa] {
 	int current_price;
 	int bottom_price;
 	bool in_auction <- false;
+	bool propose <- false;
 	
 	reflex start_auction when: time mod rnd(1000) = 0 and !in_auction {
 		in_auction <- true;
+		propose <- true;
 		current_price <- rnd(1000, 10000);
 		bottom_price <- rnd(1, 1000);
 		
 		write name + ": Starting auction of " + item + ". Current price: " + current_price + ". Bottom price: " + bottom_price;
 		
 		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [item, self] ];
-		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'cfp', contents :: [current_price, self] ];
 	}
+	
+	reflex propose when: propose {
+		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'cfp', contents :: [current_price, self] ];
+		propose <- false;
+	} 
 	
 	reflex end_auction when: in_auction and !empty(proposes) {
 		message winner_proposal <- proposes at 0;
