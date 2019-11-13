@@ -10,7 +10,7 @@ model DifferentAuctions
 /* Insert your model definition here */
 
 global {
-	list<string> auction_types <- ["dutch", "english"];// , "sealed_bid"];
+	list<string> auction_types <- ["dutch", "english", "sealed_bid"];
 	
 	list<string> interests <- ["CDs", "T-Shirts", "Shoes"];
 	list<Guest> guests;
@@ -18,7 +18,7 @@ global {
 	
 	init {
 		create Guest number:50 returns:_guests;
-		create Auctioneer number:1;
+		create Auctioneer number:3;
 		create Bank number:1 returns: _banks;
 		
 		guests <- _guests;
@@ -117,12 +117,8 @@ species Auctioneer skills: [fipa] {
 	int current_price;
 	int bottom_price;
 	bool in_auction <- false;
-	string auction_type <- "english";// <- auction_types[rnd(length(auction_types) - 1)];
+	string auction_type <- "sealed_bid";// <- auction_types[rnd(length(auction_types) - 1)];
 	
-	reflex status when: in_auction = true {
-		write "current_price: " + current_price;
-		write "bottom_price: " + bottom_price;
-	}
 	
 	reflex reduce_price when: auction_type = "dutch" and in_auction and empty(proposes) {
 		current_price <- current_price - 500;
@@ -153,22 +149,30 @@ species Auctioneer skills: [fipa] {
 		}
 		
 		int largestBidCount <- 0;
-		list<message> english_proposes;
-		message largestBid;
 		loop propose over: proposes {
-			// english_proposes[0] <- propose;
 			if largestBidCount < int(propose.contents[0]) {
 				largestBidCount <- int(propose.contents[0]);
-				// largestBid <- propose;
-				// do reject_proposal with: [ message :: propose, contents :: [] ];
 			}
 		}
 		current_price <- largestBidCount;
 		write name + "In analyse_english_bids; New highest bid: " + current_price;
 		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'cfp', contents :: [largestBidCount, self] ];
-		
-		// loop propose over: english_proposes {}
-		
+	}
+	
+	reflex analyse_sealed_bids when: auction_type = "sealed_bid" and in_auction and !empty(proposes) {
+		int largestBidCount <- 0;
+		message largestBidMessage;
+		loop propose over: proposes {
+			if largestBidCount < int(propose.contents[0]) {
+				largestBidCount <- int(propose.contents[0]);
+				largestBidMessage <- propose;
+			}
+		}
+		current_price <- largestBidCount;
+		write name + "In analyse_sealed_bids; New highest bid: " + current_price;
+		do accept_proposal with: [ message :: largestBidMessage, contents :: [current_price] ];
+		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [self] ]; // ending auction
+		in_auction <- false;
 	}
 	
 	reflex start_auction when: flip(0.05) and !in_auction {
@@ -179,7 +183,7 @@ species Auctioneer skills: [fipa] {
 		if auction_type = "dutch" {
 			current_price <- rnd(12000, 20000);
 			do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'cfp', contents :: [current_price, self] ];
-		} else if auction_type = "english" {
+		} else {
 			current_price <- bottom_price;
 			do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'cfp', contents :: [bottom_price, self] ];
 		}
@@ -226,7 +230,6 @@ species Bank skills: [] {
 		draw triangle(10) color: #green;
 	}
 }
-
 
 
 experiment my_experiment type:gui {
