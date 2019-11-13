@@ -16,12 +16,15 @@ global {
 	
 	list<string> interests <- ["CDs", "T-Shirts", "Shoes"];
 	list<Guest> guests;
+	Bank bank;
 	
 	init {
 		create Guest number:50 returns:_guests;
 		create Auctioneer number:3;
+		create Bank number:1 returns: _banks;
 		
 		guests <- _guests;
+		bank <- _banks at 0;
 	}
 }
 
@@ -30,6 +33,7 @@ species Guest skills: [fipa, moving] {
 	string interest <- interests[rnd(length(interests) - 1)];
 	Auctioneer auctioneer <- nil;
 	int budget <- rnd(1, 10000);
+	point target; 
 	
 	reflex dance when: auctioneer = nil {
 		do wander;
@@ -73,7 +77,24 @@ species Guest skills: [fipa, moving] {
 	reflex won_auction when: !empty(accept_proposals) {
 		write name + " won the auction. time: " + time;
 		auctioneer <- nil;
-		do end_conversation with: [message :: accept_proposals[0], contents :: []];
+		budget <- budget - int(accept_proposals[0].contents[0]);
+	}
+	
+	reflex broke when: budget < 1000 {
+		target <- bank.location;
+	}
+	
+	reflex reached_bank when: (target != nil) and !empty(Bank at_distance 0) {
+		budget <- budget + 7000;
+		target <- {rnd(100), rnd(100), 1};
+	}
+	
+	reflex going_to_target when: target != nil {
+		do goto target: target;
+	}
+	
+	reflex reached_target when: target - location = {0,0,0} {
+		target <- nil;
 	}
 	
 	aspect base {		
@@ -130,7 +151,7 @@ species Auctioneer skills: [fipa] {
 		
 		write name + ": Ending auction. Sold at: " + current_price;
 		
-		do accept_proposal with: [ message :: winner_proposal, contents :: [] ];
+		do accept_proposal with: [ message :: winner_proposal, contents :: [current_price] ];
 		loop propose over: proposes {
 			do reject_proposal with: [ message :: propose, contents :: [] ];
 		}
@@ -153,6 +174,12 @@ species Auctioneer skills: [fipa] {
 	}
 }
 
+species Bank skills: [] {
+	aspect base {
+		draw triangle(10) color: #green;
+	}
+}
+
 
 
 experiment my_experiment type:gui {
@@ -160,6 +187,7 @@ experiment my_experiment type:gui {
 		display my_display {
 			species Guest aspect:base;
 			species Auctioneer aspect:base;
+			species Bank aspect:base;
 		}
 	}
 }
