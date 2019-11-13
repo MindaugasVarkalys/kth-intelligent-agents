@@ -5,7 +5,7 @@
 * Tags: Tag1, Tag2, TagN
 ***/
 
-model Assignment1
+model BaseTask
 
 
 /* Insert your model definition here */
