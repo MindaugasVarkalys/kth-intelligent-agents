@@ -53,7 +53,7 @@ species Guest skills: [fipa, moving] {
 			return nil;
 		}
 		message cfp_message <- cfp_messages at 0;
-		write name + ": Accepting the offer. Lowest price: " + cfp_message.contents[0] + ". Bid: " + budget;
+		write name + ": Proposing " + budget;
 		do propose with: [ message :: cfp_message, contents :: [budget] ];  // Sending budget in case of sealed-bid auction
 	}
 	
@@ -62,18 +62,18 @@ species Guest skills: [fipa, moving] {
 		if length(inform_messages_from_auctioneer) = 0 {
 			return nil;
 		}		
-		write name + ": Exiting the auction because it's closed";
+		write name + ": Exiting the auction";
 		auctioneer <- nil;
 	}
 	
 	reflex lost_auction when: !empty(reject_proposals) {
-		write name + " lost the auction. time: " + time;
+		write name + " lost the auction";
 		auctioneer <- nil;
 		do end_conversation with: [message :: reject_proposals[0], contents :: []];
 	}
 	
 	reflex won_auction when: !empty(accept_proposals) {
-		write name + " won the auction. time: " + time;
+		write name + " won the auction";
 		auctioneer <- nil;
 		budget <- budget - int(accept_proposals[0].contents[0]);
 	}
@@ -117,30 +117,24 @@ species Auctioneer skills: [fipa] {
 	int current_price;
 	int bottom_price;
 	bool in_auction <- false;
-	string auction_type <- "sealed_bid";// <- auction_types[rnd(length(auction_types) - 1)];
+	string auction_type <- auction_types[rnd(length(auction_types) - 1)];
 	
 	
 	reflex reduce_price when: auction_type = "dutch" and in_auction and empty(proposes) {
 		current_price <- current_price - 500;
 		if current_price < bottom_price {
-			// write name + ": Ending auction because of too low price";
+			write name + "(" + auction_type + "): Ending auction because of too low price";
 			do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [self] ]; // ending auction
 			in_auction <- false;
 		} else {
-			// write name + ": Lowering the price to " + current_price;
+			write name + "(" + auction_type + "): Lowering the price to " + current_price;
 			do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'cfp', contents :: [current_price, self] ];
 		}
 	}
 	
-	reflex get_out_of_auction when: auction_type = "english" and in_auction and empty(proposes) {
-		in_auction <- false;
-	}
-	
-	reflex analyse_english_bids when: auction_type = "english" and in_auction and !empty(proposes) {
-		
-		write "In analyse_english_bids " + " current_price: " + current_price;
-		
+	reflex analyse_english_bids when: auction_type = "english" and in_auction and !empty(proposes) {		
 		if length(proposes) = 1 {
+			write name + "(" + auction_type + "): Ending auction. Sold at: " + current_price;
 			in_auction <- false;
 			message winner_proposal <- proposes at 0;
 			do accept_proposal with: [ message :: winner_proposal, contents :: [current_price] ];
@@ -155,7 +149,7 @@ species Auctioneer skills: [fipa] {
 			}
 		}
 		current_price <- largestBidCount;
-		write name + "In analyse_english_bids; New highest bid: " + current_price;
+		write name + "(" + auction_type + "): Highest bid: " + current_price;
 		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'cfp', contents :: [largestBidCount, self] ];
 	}
 	
@@ -169,7 +163,7 @@ species Auctioneer skills: [fipa] {
 			}
 		}
 		current_price <- largestBidCount;
-		write name + "In analyse_sealed_bids; New highest bid: " + current_price;
+		write name + "(" + auction_type + "): Ending auction. Sold at: " + current_price;
 		do accept_proposal with: [ message :: largestBidMessage, contents :: [current_price] ];
 		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [self] ]; // ending auction
 		in_auction <- false;
@@ -193,7 +187,7 @@ species Auctioneer skills: [fipa] {
 	reflex end_auction when: auction_type = "dutch" and in_auction and !empty(proposes) {
 		message winner_proposal <- proposes at 0;
 		
-		// write name + ": Ending auction. Sold at: " + current_price;
+		write name + "(" + auction_type + "): Ending auction. Sold at: " + current_price;
 		
 		do accept_proposal with: [ message :: winner_proposal, contents :: [current_price] ];
 		loop propose over: proposes {
