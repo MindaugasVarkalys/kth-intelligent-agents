@@ -14,22 +14,26 @@ global {
 	list<string> statuses <- ["waiting", "in_auction"];
 	
 	
-	list<string> interests <- ["CD", "T-Shirt", "Shoes"];
+	list<string> interests <- ["CDs", "T-Shirts", "Shoes"];
 	list<Guest> guests;
 	
 	init {
 		create Guest number:50 returns:_guests;
-		create Auctioneer number:1;
+		create Auctioneer number:3;
 		
 		guests <- _guests;
 	}
 }
 
-species Guest skills: [fipa] {
+species Guest skills: [fipa, moving] {
 	
 	string interest <- interests[rnd(length(interests) - 1)];
 	Auctioneer auctioneer <- nil;
 	int budget <- rnd(1, 10000);
+	
+	reflex dance when: auctioneer = nil {
+		do wander;
+	}
 	
 	reflex join_auction when: (!empty(informs) and auctioneer = nil) {
 		list<message> auction_messages <- (informs where (each.contents[0] = interest));
@@ -72,8 +76,18 @@ species Guest skills: [fipa] {
 		do end_conversation with: [message :: accept_proposals[0], contents :: []];
 	}
 	
-	aspect base {
-		draw circle(1) color: auctioneer = nil ? #black : #red;
+	aspect base {		
+		if auctioneer = nil {
+			draw circle(1) color: #black;
+			return;
+		}
+		if auctioneer.item = "CDs" {
+			draw circle(1) color: #red;
+		} else if auctioneer.item = "Shoes" {
+			draw circle(1) color: #green;
+		} else if auctioneer.item = "T-Shirts" {
+			draw circle(1) color: #blue;
+		}
 	}
 }
 
@@ -124,10 +138,18 @@ species Auctioneer skills: [fipa] {
 		in_auction <- false;
 	}
 	
-
-		
 	aspect base {
-		draw square(2) color: in_auction ? #red : #black;
+		if !in_auction {
+			draw square(5) color: #black;
+			return;
+		}
+		if item = "CDs" {
+			draw square(5) color: #red;
+		} else if item = "Shoes" {
+			draw square(5) color: #green;
+		} else if item = "T-Shirts" {
+			draw square(5) color: #blue;
+		}
 	}
 }
 
