@@ -13,10 +13,13 @@ global {
 	
 	list<Guest> guests;
 	list<Stage> stages;
+	list<Host> hosts;
 	
 	init {
 		create Stage number:3 returns:_stages;
-		create Guest number:50 returns:_guests;
+		create Guest number:10 returns:_guests;
+		create Host number:1 returns: _hosts;
+		hosts <- _hosts;
 		stages <- _stages;
 		guests <- _guests;
 	}
@@ -31,52 +34,23 @@ species Guest skills: [fipa, moving] {
 	float crowd_mass <- rnd(-10, 10) / 10;
 	
 	bool at_optimal_stage <- false;
-	bool asked_all_stages <- false;
 	Stage optimal_stage <- nil;
 	
-	reflex ask_preferences when: !asked_all_stages and !at_optimal_stage and optimal_stage = nil {
-		do start_conversation with: [ to :: stages, protocol :: 'fipa-query', performative :: 'query', contents :: ['your attributes?'] ];
-		asked_all_stages <- true;
-	}
-	
-	reflex read_inform_message when: !(empty(informs)) {
-		float highestUtility <- 0.0;
-		write name + ' reads inform messages';
-		if optimal_stage != nil {
-			highestUtility <- (lightshow * optimal_stage.lightshow + speakers * optimal_stage.speakers + band * optimal_stage.band + crowd_mass*optimal_stage.crowd_mass);
-		}
-		
-		loop i over: informs {
-			write 'inform message with content: ' + (string(i.contents));
-			
-			float utility <- (
-				lightshow * float(i.contents[1]) +
-				speakers * float(i.contents[2]) + 
-				band * float(i.contents[3]) +
-				crowd_mass * float(i.contents[4])
-			);
-			if utility > highestUtility {
-				highestUtility <- utility;
-				optimal_stage <- i.contents[0];
-				write "New Optimal Stage! lightshow: " + optimal_stage.lightshow +
-					" speakers: " + optimal_stage.speakers + 
-					" band: " + optimal_stage.band + 
-					" crowd_mass: " + optimal_stage.crowd_mass;
-				at_optimal_stage <- false;
-			}
-		}
+	reflex read_inform_message when: !(empty(informs)) {		
+		message inform <- informs at 0;
+		do end_conversation with: [message :: inform, contents :: []];
+		optimal_stage <- inform.contents[0];
+		at_optimal_stage <- false;
 	}
 	
 	reflex go_to_stage when: !at_optimal_stage and optimal_stage != nil {
 		do goto target: optimal_stage.location;
-		write "Going to optimal stage! optimal_stage.location: " + optimal_stage.location + " location: " + location;
+		//write "Going to optimal stage! optimal_stage.location: " + optimal_stage.location + " location: " + location;
 	}
 	
-	
 	reflex reached_stage when: optimal_stage != nil and !at_optimal_stage and [optimal_stage] at_distance 3  {
-		write "Reached optimal stage! optimal_stage.location: " + optimal_stage.location + " location: " + location;
+		//write "Reached optimal stage! optimal_stage.location: " + optimal_stage.location + " location: " + location;
 		at_optimal_stage <- true;
-		asked_all_stages <- false;
 	}
 	
 	reflex dance when: at_optimal_stage {
@@ -104,14 +78,8 @@ species Stage skills: [fipa] {
 		lightshow <- rnd(1, 10) / 10;
 		speakers <- rnd(1, 10) / 10;
 		band <- rnd(1, 10) / 10;
-		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, lightshow, speakers, band, crowd_mass ] ];
-	}
-	
-	reflex reply_query_messages when: !(empty(queries)) {
-		message queryFromInitiator <- queries at 0;
-		write name + ' reads a query message with content : ' + (string(queryFromInitiator.contents));
-		do agree with: [ message :: queryFromInitiator, contents :: ['OK, I will answer you'] ];
-		do inform with: [ message :: queryFromInitiator, contents :: [ self, lightshow, speakers, band, crowd_mass ] ];
+		write name + ": New concert!";
+		do start_conversation with: [ to :: hosts, protocol :: 'fipa-query', performative :: 'inform', contents :: [ ] ];
 	}
 	
 	aspect base {
@@ -119,7 +87,47 @@ species Stage skills: [fipa] {
 	}
 }
 
-
+species Host skills: [fipa] {
+	
+	reflex inform_guests when: !empty(informs) {
+		do end_conversation with: [message :: informs at 0, contents :: []];
+		
+		int s <- length(stages);
+		int g <- length(guests);
+		map<Guest, Stage> best_variation;
+		float best_utility <- float(0);
+		loop i from: 0 to: g ^ s - 1 {
+			map<Guest, Stage> variation <- [];
+			list<int> crowd <- list_with(s, 0);
+			loop j from: 0 to: g - 1 {
+				int si <- (i / (s ^ j)) mod s;
+				crowd[si] <- crowd[si] + 1;
+				add guests[j]::stages[si] to: variation;
+			}
+			
+			float utility <- float(0);
+			loop j from: 0 to: g - 1 {
+				int si <- (i / (s ^ j)) mod s;
+				utility <- utility + (
+					stages[si].lightshow * guests[j].lightshow +
+					stages[si].speakers * guests[j].speakers + 
+					stages[si].band * guests[j].band +
+					crowd[si] * guests[j].crowd_mass
+				);
+			}
+			if (utility > best_utility) {
+				best_variation <- variation;
+				best_utility <- utility;
+			}
+		}
+		
+		write "Sending messages to guests";
+		write "Global utility: " + best_utility;
+		loop k over: best_variation.keys{
+			do start_conversation with: [ to :: [k], protocol :: 'fipa-query', performative :: 'inform', contents :: [ best_variation[k] ] ];
+		}
+	}
+}
 
 experiment my_experiment type:gui {
 	output {
