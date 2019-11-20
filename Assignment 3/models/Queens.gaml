@@ -10,18 +10,16 @@ model Queens
 /* Insert your model definition here */
 
 global {
-	int SIZE <- 6;
+	int SIZE <- 10;
 	init {
 		queen parent;
 		loop i from: 0 to: SIZE - 1 {
 			create queen returns: column_queen {
-				positioning <- i = 0;
-				predecessor <- parent;
-				cell <- chess_grid grid_at {i, 0};
-				location <- cell.location;
+				pred <- parent;
+				location <- {0, 0, 0};
+				col <- i;
 			}
 			parent <- column_queen[0];
-			write parent;
 		}
 	}
 }
@@ -33,19 +31,38 @@ grid chess_grid width: SIZE height: SIZE neighbors: 4 {
 
 species queen skills: [moving] {
 	
-	chess_grid cell;
-	bool positioning;
-	queen predecessor;
+	bool positioned <- false;
+	int row <- -1;
+	int col;
+	queen pred;
 	
-	bool is_right_position(chess_grid successor_cell) {
-		return successor_cell.grid_x != cell.grid_x and predecessor.is_right_position(successor_cell);
+	bool is_right_position(chess_grid new_cell) {
+		if (pred = nil) {
+			return true;
+		}
+		return pred.row != new_cell.grid_y and
+			abs(pred.row - new_cell.grid_y) != abs(pred.col - new_cell.grid_x) and 
+			pred.is_right_position(new_cell);
 	}
 	
-	reflex move_to_position when: positioning {
-		loop i from: 0 to: SIZE - 1 {
-			cell <- chess_grid grid_at {cell.grid_x, i};
-			location <- cell.location;
+	reflex move_to_position when: !positioned and (pred = nil or pred.positioned = true) {
+		if (row < SIZE - 1) {
+			loop i from: (row + 1) to: SIZE - 1 {
+				chess_grid cell <- chess_grid grid_at {col, i};
+				location <- cell.location;
+				
+				if (is_right_position(cell)) {
+					row <- i;
+					write name + " " + row;
+					positioned <- true;
+					return;
+				}
+			}
 		}
+		row <- -1;
+		location <- {0, 0, 0};
+		write name + " " + row;
+		pred.positioned <- false;
 	}
 	
 	aspect base {
