@@ -14,19 +14,22 @@ global {
 	list<string> genres <- ["POP", "Rock", "Deuche Rap", "Disco"];
 	
 	list<FoodTruck> foodTrucks;
+	list<Bar> bars;
 	
 	init {
 		create Stage number:3;
 		create Guest number:50;
-		create Bar number:3;
+		create Bar number:3 returns: _bars;
 		create FoodTruck number:5 returns: _foodTrucks;
 		
 		foodTrucks <- _foodTrucks;
+		bars <- _bars;
 	}
 }
 
 
 species Guest skills: [fipa, moving] {
+	
 	int happiness <- 50;
 	point target <- nil;
 		
@@ -41,6 +44,10 @@ species Guest skills: [fipa, moving] {
 	
 	reflex targetReached when: target - location = {0,0,0} {
 		target <- nil;
+	}
+	
+	reflex moveAround when: target = nil and flip(0.01) {
+		target <- {rnd(100), rnd(100), 1};
 	}
 	
 	reflex gettingHungry {
@@ -74,9 +81,32 @@ species Guest skills: [fipa, moving] {
 		}
 		do wander;
 	}
-	 
+	
+	reflex offersGoingTobBar when: target = nil and empty(Stage at_distance 30) {
+		list<Guest> nearbyGuests <- Guest at_distance 10;
+		Guest selectedGuest <- nearbyGuests[rnd(0, length(nearbyGuests) - 1)];
+		if selectedGuest != nil {
+			Bar selectedBar <- bars[rnd(0, length(bars) - 1)];
+			do start_conversation with: [ to :: [selectedGuest], protocol :: 'fipa-query', performative :: 'propose', contents :: [favoriteGenre, selectedBar] ];
+		}
+	}
+	
+	reflex answerOffer when: !empty(proposes) {
+		message proposal <- proposes at 0;
+		if target != nil and proposal.contents[0] = favoriteGenre {
+			do accept_proposal(message : proposal, contents : [] );
+			target <- (proposal.contents[1] as Bar).location;
+		} else {
+			do reject_proposal(message : proposal, contents: [] );
+		}
+	}
+	
+	reflex enjoyBar when: !(empty(Bar at_distance 1)) {
+		happiness <- happiness + 5;
+	}
+	
 	aspect base {
-		draw circle(1) color: #blue;
+		draw circle(1) color: rgb(0,0,255,happiness) border: #black;
 	}
 }
 
@@ -113,10 +143,10 @@ species FoodTruck {
 experiment my_experiment type:gui {
 	output {
 		display my_display {
-			species Guest aspect:base;
 			species Stage aspect:base;
 			species Bar aspect:base;
 			species FoodTruck aspect:base;
+			species Guest aspect:base;
 		}
 	}
 }
