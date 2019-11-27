@@ -17,18 +17,49 @@ global {
 	list<Bar> bars;
 	list<Stage> stages;
 	list<Guest> guests;
+	list<BandMember> bandMembers;
 	int loudestSoundDistance <- 20;
+	int numberStages <- 3;
+	int bandNumberN <- 0;
 	
 	init {
-		create Stage number:3 returns: _stages;
+		create Stage number:numberStages returns: _stages;
 		create Guest number:30 returns: _guests;
 		create Bar number:3 returns: _bars;
 		create FoodTruck number:5 returns: _foodTrucks;
 		
+		bandMembers <- createNewBandMembers(_stages);
 		stages <- _stages;
 		guests <- _guests;
 		foodTrucks <- _foodTrucks;
 		bars <- _bars;
+	}
+	
+	list<BandMember> createNewBandMembers(list<Stage> emptyStages) {
+		list<BandMember> newBandMembers;
+		loop stage over:emptyStages{
+			string genre <- genres[rnd(0, length(genres) - 1)];
+			stage.genre <- genre;
+			int timeToPlay <- rnd(20,100);
+			create BandMember number:3 returns: _bandMembers;
+			loop bandMember over: _bandMembers {
+				bandMember.location <- {0,0,0};
+				bandMember.BandNumber <- bandNumberN;
+				bandMember.stage <- stage;
+				bandMember.target <- stage.location;
+				bandMember.genre <- genre;
+				bandMember.timeToPlay <- timeToPlay;
+			}
+			newBandMembers <- newBandMembers + _bandMembers;
+			bandNumberN <- bandNumberN + 1;
+		}
+		return newBandMembers;
+	}
+	
+	reflex startNewConcert {
+		list<Stage> emptyStages <- (Stage where (!each.concertRunning));
+		write "emptyStages: " + emptyStages;
+		bandMembers <- bandMembers + createNewBandMembers(emptyStages);
 	}
 }
 
@@ -50,15 +81,15 @@ species Guest skills: [fipa, moving] {
 		}
 	}
 	
-	reflex printing {
-		write 
-			"name" + name + 
-			", happiness: " + happiness +
-			", target: " + target +
-			", fullness: " + fullness +
-			", favoriteGenre: " + favoriteGenre
-			;
-	}
+//	reflex printing {
+//		write 
+//			"name" + name + 
+//			", happiness: " + happiness +
+//			", target: " + target +
+//			", fullness: " + fullness +
+//			", favoriteGenre: " + favoriteGenre
+//			;
+//	}
 	
 	reflex goingToTarget when: target != nil {
 		do goto target: target;
@@ -91,7 +122,6 @@ species Guest skills: [fipa, moving] {
 			// write "goodFoodHappiness: " + goodFoodHappiness;
 			// happiness <- happiness + goodFoodHappiness;
 			happiness <- happiness + 20;
-			write "New happiness: " + happiness;
 			fullness <- 100;
 			target <- nil;
 		} else {
@@ -103,13 +133,13 @@ species Guest skills: [fipa, moving] {
 		list<Stage> stagesGuestCanHear <- (Stage where (each.soundDistance > int(each.location distance_to location)));
 		loop stage over: stagesGuestCanHear {
 			if stage.genre = favoriteGenre {
-				write "At favourite stage";
+				// write "At favourite stage";
 				happiness <- happiness + 20;
 				do wander;
 				return;
 			}
 		}
-		write "Near stage, but not dancing. Target: " + target;
+		// write "Near stage, but not dancing. Target: " + target;
 	}
 	
 	reflex offersGoingToBar when: target = nil and empty(Stage at_distance 20) and !empty(Guest at_distance 5) {
@@ -165,17 +195,66 @@ species Guest skills: [fipa, moving] {
 species Stage skills: [fipa] {
 	
 	int soundDistance <- rnd(10, loudestSoundDistance);
-	string genre <- genres[rnd(0, length(genres) - 1)];
+	string genre;
+	bool concertRunning <- false;
 	
-	reflex newConcert when: flip(0.005) {
-		genre <- genres[rnd(0, length(genres) - 1)];
+//	reflex concertIsOver when: flip(0.05) {
+//		genre <- genres[rnd(0, length(genres) - 1)];
+//		do start_conversation with: [ to :: bandMembers, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
+//	}
+	
+	reflex newConcert when: !concertRunning {
 		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
+		concertRunning <- true;
 	}
 	
 	aspect base {
 		draw square(5) color: #purple;
 		draw circle(soundDistance) color:rgb(#purple,0.5);	
 	}
+}
+
+species BandMember skills: [moving, fipa] {
+	int BandNumber;
+	string genre;
+	int timeToPlay;
+	point target;
+	Stage stage;
+	
+	reflex print {
+		// write "target: " + target + " timeToPlay: " + timeToPlay + " stage: " + stage;
+	}
+	
+	reflex goingToTarget when: target != nil {
+		do goto target: target;
+		do wander;
+	}
+	
+	reflex targetReached when: target != nil and (target distance_to location < 1) {
+		if target = {1000, 1000, 1000} {
+			do die;
+			return;
+		}
+		target <- nil;
+	}
+	
+	reflex chillingAtTarget when: target = nil {
+		do wander;
+		timeToPlay <- timeToPlay - 1;
+	}
+	
+	reflex finishedPlaying when: target = nil and timeToPlay < 0 {
+		write name + " Finished playing!";
+		ask stage {
+			self.concertRunning <- false;
+		}
+		target <- {1000, 1000, 1000};
+	}
+	
+	aspect base {
+		draw circle(1) color:rgb(#black);	
+	}
+	
 }
 
 species Bar {
@@ -199,6 +278,7 @@ experiment my_experiment type:gui {
 	output {
 		display my_display {
 			species Stage aspect:base;
+			species BandMember aspect:base;
 			species Bar aspect:base;
 			species FoodTruck aspect:base;
 			species Guest aspect:base;
