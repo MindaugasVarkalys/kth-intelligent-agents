@@ -30,6 +30,9 @@ global {
 		foodTrucks <- _foodTrucks;
 		bars <- _bars;
 	}
+	
+	int totalHappiness <- 0 update: sum(Guest collect (each.happiness));
+	int totalFullness <- 0 update: sum(Guest collect (each.fullness));
 }
 
 
@@ -203,5 +206,12 @@ experiment my_experiment type:gui {
 			species FoodTruck aspect:base;
 			species Guest aspect:base;
 		}
+		
+		display chart {
+        	chart "Chart1" type: series style: spline {
+     		   	data "Total happiness" value: totalHappiness color: #green;
+        		data "Total fullness" value: totalFullness color: #red;
+        	}
+    	}
 	}
 }
