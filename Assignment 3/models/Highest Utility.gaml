@@ -15,10 +15,8 @@ global {
 	list<Stage> stages;
 	
 	init {
-		int NO_OF_GUESTS <- 50;
-		int NO_OF_STAGES <- 3;
 		create Stage number:3 returns:_stages;
-		create Guest number:3 returns:_guests;
+		create Guest number:50 returns:_guests;
 		stages <- _stages;
 		guests <- _guests;
 	}
