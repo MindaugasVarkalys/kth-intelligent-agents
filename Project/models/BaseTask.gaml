@@ -15,13 +15,15 @@ global {
 	
 	list<FoodTruck> foodTrucks;
 	list<Bar> bars;
+	list<Guest> guests;
 	
 	init {
 		create Stage number:3;
-		create Guest number:50;
+		create Guest number:200 returns: _guests;
 		create Bar number:3 returns: _bars;
 		create FoodTruck number:5 returns: _foodTrucks;
 		
+		guests <- _guests;
 		foodTrucks <- _foodTrucks;
 		bars <- _bars;
 	}
@@ -31,8 +33,9 @@ global {
 species Guest skills: [fipa, moving] {
 	
 	int happiness <- 50;
-	point target <- nil;
-		
+	Stage preferred_stage <- nil;
+	agent target <- nil;
+	
 	bool isVegan <- flip(0.3);
 	int fullness <- rnd(1, 100);
 	
@@ -42,12 +45,14 @@ species Guest skills: [fipa, moving] {
 		do goto target: target;
 	}
 	
-	reflex targetReached when: target - location = {0,0,0} {
-		target <- nil;
+	reflex targetReached when: target != nil {
+		if (target is Stage and !(empty([target] at_distance 5))) or (target.location - location = {0,0,0}) {
+			target <- nil;
+		}	
 	}
 	
-	reflex moveAround when: target = nil and flip(0.01) {
-		target <- {rnd(100), rnd(100), 1};
+	reflex moveAround when: target = nil and flip(0.5) {
+		// target.location <- {rnd(100), rnd(100), 1};
 	}
 	
 	reflex gettingHungry {
@@ -55,7 +60,7 @@ species Guest skills: [fipa, moving] {
 	}
 	
 	reflex gotHungry when: fullness = 0 {
-		target <- foodTrucks[rnd(0, length(foodTrucks) - 1)].location;
+		target <- foodTrucks[rnd(0, length(foodTrucks) - 1)];
 	}
 	
 	reflex starving when: fullness < 0 {
@@ -67,35 +72,49 @@ species Guest skills: [fipa, moving] {
 			int goodFoodHappiness <- (-rnd(500, 1500) / 1000) * fullness as int;
 			happiness <- happiness + goodFoodHappiness;
 			fullness <- 100;
-			target <- {rnd(100), rnd(100), 1};
+			target.location <- {rnd(100), rnd(100), 1};
 		} else {
-			target <- foodTrucks[rnd(0, length(foodTrucks) - 1)].location;
+			target.location <- foodTrucks[rnd(0, length(foodTrucks) - 1)].location;
 		}
 	}
 	
-	reflex dancing when: target = nil and !(empty(Stage at_distance 30)) {
-		if (Stage at_distance 30)[0].genre = favoriteGenre {
-			happiness <- happiness - 1;
-		} else {
-			happiness <- happiness + 3;
+	reflex dancing when: target = nil and !(empty(Stage at_distance 20)) {
+		loop stage over: Stage at_distance 20 {
+			if stage.genre = favoriteGenre {
+				write "At favourite stage";
+				happiness <- happiness + 20;
+				do wander;
+				return;
+			}
 		}
-		do wander;
+		write "Near stage, but not dancing. Target: " + target;
 	}
 	
-	reflex offersGoingTobBar when: target = nil and empty(Stage at_distance 30) {
-		list<Guest> nearbyGuests <- Guest at_distance 10;
+	reflex offersGoingToBar when: target = nil and empty(Stage at_distance 20) and !empty(Guest at_distance 5) {
+		list<Guest> nearbyGuests <- Guest at_distance 5;
 		Guest selectedGuest <- nearbyGuests[rnd(0, length(nearbyGuests) - 1)];
-		if selectedGuest != nil {
-			Bar selectedBar <- bars[rnd(0, length(bars) - 1)];
-			do start_conversation with: [ to :: [selectedGuest], protocol :: 'fipa-query', performative :: 'propose', contents :: [favoriteGenre, selectedBar] ];
-		}
+		Bar selectedBar <- bars[rnd(0, length(bars) - 1)];
+		do start_conversation with: [ to :: [selectedGuest], protocol :: 'fipa-query', performative :: 'propose', contents :: [favoriteGenre, selectedBar] ];
+	}
+	
+	reflex PersonAcceptedBarOffer when: !empty(accept_proposals) {
+		message accept_proposal <- accept_proposals at 0;
+		Bar proposedBar <- accept_proposal.contents[0];
+		target <- proposedBar;
+		happiness <- happiness + 30;
+	}
+	
+	reflex PersonDeclinedBarOffer when: !empty(reject_proposals) {
+		message reject_proposal <- reject_proposals at 0;
+		happiness <- happiness - 5;
 	}
 	
 	reflex answerOffer when: !empty(proposes) {
 		message proposal <- proposes at 0;
 		if target != nil and proposal.contents[0] = favoriteGenre {
-			do accept_proposal(message : proposal, contents : [] );
-			target <- (proposal.contents[1] as Bar).location;
+			Bar proposedBar <- proposal.contents[1];
+			do accept_proposal(message : proposal, contents : [proposedBar] );
+			target <- proposedBar;
 		} else {
 			do reject_proposal(message : proposal, contents: [] );
 		}
@@ -105,21 +124,33 @@ species Guest skills: [fipa, moving] {
 		happiness <- happiness + 5;
 	}
 	
+	reflex read_inform_message when: !(empty(informs)) {		
+		loop i over: informs {
+			do end_conversation with: [message :: i, contents :: []];
+			if i.contents[1] = favoriteGenre and target = nil {
+				target <- i.contents[0];
+			}
+		}
+	}
+	
 	aspect base {
 		draw circle(1) color: rgb(0,0,255,happiness) border: #black;
 	}
 }
 
-species Stage {
+species Stage skills: [fipa] {
 	
+	int soundDistance <- rnd(10,20);
 	string genre <- genres[rnd(0, length(genres) - 1)];
 	
 	reflex newConcert when: flip(0.05) {
 		genre <- genres[rnd(0, length(genres) - 1)];
+		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
 	}
 	
 	aspect base {
-		draw square(8) color: #purple;
+		draw square(5) color: #purple;
+		draw circle(soundDistance) color:rgb(#purple,0.5);	
 	}
 }
 
