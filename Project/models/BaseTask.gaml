@@ -45,11 +45,6 @@ species Guest skills: [fipa, moving] {
 		} else if happiness > 100 {
 			happiness <- 100;
 		}
-		if fullness < 0 {
-			fullness <- 0;
-		} else if fullness > 100 {
-			fullness <- 100;
-		}
 	}
 	
 	reflex printing {
@@ -129,6 +124,7 @@ species Guest skills: [fipa, moving] {
 	
 	reflex PersonDeclinedBarOffer when: !empty(reject_proposals) {
 		message reject_proposal <- reject_proposals at 0;
+		do end_conversation with: [message :: reject_proposal, contents :: []];
 		happiness <- happiness - 5;
 	}
 	
