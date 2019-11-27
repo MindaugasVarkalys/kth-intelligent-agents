@@ -15,14 +15,17 @@ global {
 	
 	list<FoodTruck> foodTrucks;
 	list<Bar> bars;
+	list<Stage> stages;
 	list<Guest> guests;
+	int loudestSoundDistance <- 20;
 	
 	init {
-		create Stage number:3;
+		create Stage number:3 returns: _stages;
 		create Guest number:30 returns: _guests;
 		create Bar number:3 returns: _bars;
 		create FoodTruck number:5 returns: _foodTrucks;
 		
+		stages <- _stages;
 		guests <- _guests;
 		foodTrucks <- _foodTrucks;
 		bars <- _bars;
@@ -96,8 +99,9 @@ species Guest skills: [fipa, moving] {
 		}
 	}
 	
-	reflex dancing when: target = nil and !(empty(Stage at_distance 20)) {
-		loop stage over: Stage at_distance 20 {
+	reflex dancing when: target = nil and !(empty(Stage at_distance loudestSoundDistance)) {
+		list<Stage> stagesGuestCanHear <- (Stage where (each.soundDistance > int(each.location distance_to location)));
+		loop stage over: stagesGuestCanHear {
 			if stage.genre = favoriteGenre {
 				write "At favourite stage";
 				happiness <- happiness + 20;
@@ -160,7 +164,7 @@ species Guest skills: [fipa, moving] {
 
 species Stage skills: [fipa] {
 	
-	int soundDistance <- rnd(10,20);
+	int soundDistance <- rnd(10, loudestSoundDistance);
 	string genre <- genres[rnd(0, length(genres) - 1)];
 	
 	reflex newConcert when: flip(0.005) {
