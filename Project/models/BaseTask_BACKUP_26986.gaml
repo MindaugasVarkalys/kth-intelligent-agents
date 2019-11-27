@@ -34,11 +34,8 @@ global {
 		foodTrucks <- _foodTrucks;
 		bars <- _bars;
 	}
-
-    int totalHappiness <- 0 update: sum(Guest collect (each.happiness));
-    int totalFullness <- 0 update: sum(Guest collect (each.fullness));
-
-
+	
+<<<<<<< HEAD
 	list<BandMember> createNewBandMembers(list<Stage> emptyStages) {
 		list<BandMember> newBandMembers;
 		loop stage over:emptyStages{
@@ -65,6 +62,10 @@ global {
 		write "emptyStages: " + emptyStages;
 		bandMembers <- bandMembers + createNewBandMembers(emptyStages);
 	}
+=======
+	int totalHappiness <- 0 update: sum(Guest collect (each.happiness));
+	int totalFullness <- 0 update: sum(Guest collect (each.fullness));
+>>>>>>> f1ad749635afed9da89c08ef250627def1df9092
 }
 
 
