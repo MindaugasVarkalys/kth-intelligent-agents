@@ -19,7 +19,7 @@ global {
 	
 	init {
 		create Stage number:3;
-		create Guest number:200 returns: _guests;
+		create Guest number:30 returns: _guests;
 		create Bar number:3 returns: _bars;
 		create FoodTruck number:5 returns: _foodTrucks;
 		
@@ -33,13 +33,34 @@ global {
 species Guest skills: [fipa, moving] {
 	
 	int happiness <- 50;
-	Stage preferred_stage <- nil;
 	agent target <- nil;
-	
 	bool isVegan <- flip(0.3);
 	int fullness <- rnd(1, 100);
-	
+	int starvingLevel <- 20;
 	string favoriteGenre <- genres[rnd(0, length(genres) - 1)];
+	
+	reflex equalifyValues {
+		if happiness < 0 {
+			happiness <- 0;
+		} else if happiness > 100 {
+			happiness <- 100;
+		}
+		if fullness < 0 {
+			fullness <- 0;
+		} else if fullness > 100 {
+			fullness <- 100;
+		}
+	}
+	
+	reflex printing {
+		write 
+			"name" + name + 
+			", happiness: " + happiness +
+			", target: " + target +
+			", fullness: " + fullness +
+			", favoriteGenre: " + favoriteGenre
+			;
+	}
 	
 	reflex goingToTarget when: target != nil {
 		do goto target: target;
@@ -59,22 +80,24 @@ species Guest skills: [fipa, moving] {
 		fullness <- fullness - 1;
 	}
 	
-	reflex gotHungry when: fullness = 0 {
-		target <- foodTrucks[rnd(0, length(foodTrucks) - 1)];
-	}
-	
-	reflex starving when: fullness < 0 {
+	reflex starving when: fullness < starvingLevel {
 		happiness <- happiness - 1;
+		if !(target is FoodTruck) {
+			target <- foodTrucks[rnd(0, length(foodTrucks) - 1)];
+		}
 	}
 	
 	reflex reachedFoodTruck when: !(empty(FoodTruck at_distance 0)) {
 		if (FoodTruck at_distance 0)[0].isVegan = isVegan {
-			int goodFoodHappiness <- (-rnd(500, 1500) / 1000) * fullness as int;
-			happiness <- happiness + goodFoodHappiness;
+			// int goodFoodHappiness <- (rnd(50, 100)) * fullness as int;
+			// write "goodFoodHappiness: " + goodFoodHappiness;
+			// happiness <- happiness + goodFoodHappiness;
+			happiness <- happiness + 20;
+			write "New happiness: " + happiness;
 			fullness <- 100;
-			target.location <- {rnd(100), rnd(100), 1};
+			target <- nil;
 		} else {
-			target.location <- foodTrucks[rnd(0, length(foodTrucks) - 1)].location;
+			target <- foodTrucks[rnd(0, length(foodTrucks) - 1)];
 		}
 	}
 	
@@ -121,7 +144,8 @@ species Guest skills: [fipa, moving] {
 	}
 	
 	reflex enjoyBar when: !(empty(Bar at_distance 1)) {
-		happiness <- happiness + 5;
+		happiness <- happiness + 20;
+		fullness <- fullness + 2;
 	}
 	
 	reflex read_inform_message when: !(empty(informs)) {		
@@ -134,7 +158,7 @@ species Guest skills: [fipa, moving] {
 	}
 	
 	aspect base {
-		draw circle(1) color: rgb(0,0,255,happiness) border: #black;
+		draw circle(1) color: rgb(0,0,255,int(happiness * 2.55)) border: #black;
 	}
 }
 
@@ -143,7 +167,7 @@ species Stage skills: [fipa] {
 	int soundDistance <- rnd(10,20);
 	string genre <- genres[rnd(0, length(genres) - 1)];
 	
-	reflex newConcert when: flip(0.05) {
+	reflex newConcert when: flip(0.005) {
 		genre <- genres[rnd(0, length(genres) - 1)];
 		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
 	}
