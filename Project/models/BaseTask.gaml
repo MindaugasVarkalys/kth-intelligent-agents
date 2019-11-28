@@ -24,7 +24,7 @@ global {
 	
 	init {
 		create Stage number:numberStages returns: _stages;
-		create Guest number:30 returns: _guests;
+		create Guest number:200 returns: _guests;
 		create Bar number:3 returns: _bars;
 		create FoodTruck number:5 returns: _foodTrucks;
 		
@@ -44,7 +44,8 @@ global {
 		loop stage over:emptyStages{
 			string genre <- genres[rnd(0, length(genres) - 1)];
 			stage.genre <- genre;
-			int timeToPlay <- rnd(20,100);
+			stage.bandNumberPlaying <- bandNumberN;
+			int timeToPlay <- rnd(100,300);
 			create BandMember number:3 returns: _bandMembers;
 			loop bandMember over: _bandMembers {
 				bandMember.location <- {0,0,0};
@@ -62,7 +63,6 @@ global {
 	
 	reflex startNewConcert {
 		list<Stage> emptyStages <- (Stage where (!each.concertRunning));
-		write "emptyStages: " + emptyStages;
 		bandMembers <- bandMembers + createNewBandMembers(emptyStages);
 	}
 }
@@ -201,6 +201,7 @@ species Stage skills: [fipa] {
 	int soundDistance <- rnd(10, loudestSoundDistance);
 	string genre;
 	bool concertRunning <- false;
+	int bandNumberPlaying;
 	
 //	reflex concertIsOver when: flip(0.05) {
 //		genre <- genres[rnd(0, length(genres) - 1)];
@@ -243,6 +244,7 @@ species BandMember skills: [moving, fipa] {
 	}
 	
 	reflex chillingAtTarget when: target = nil {
+		do goto target: stage.location;
 		do wander;
 		timeToPlay <- timeToPlay - 1;
 	}
@@ -250,7 +252,9 @@ species BandMember skills: [moving, fipa] {
 	reflex finishedPlaying when: target = nil and timeToPlay < 0 {
 		write name + " Finished playing!";
 		ask stage {
-			self.concertRunning <- false;
+			if self.bandNumberPlaying = myself.BandNumber {
+				self.concertRunning <- false;
+			}
 		}
 		target <- {1000, 1000, 1000};
 	}
