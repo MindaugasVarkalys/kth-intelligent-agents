@@ -11,6 +11,10 @@ model BDI
 
 global {
 	
+	init {
+		create guest number: 5;
+	}
+	
 	string empty_food_location <- "empty_food_location";
 	string empty_bar_location <- "empty_bar_location";
 	
@@ -89,6 +93,18 @@ species guest skills: [moving] control:simple_bdi {
 	        }
 	    }   
     }
+    
+    plan choose_closest_gold_mine intention: choose_food_truck instantaneous: true {
+	    list<point> possible_trucks <- get_beliefs_with_name("food_location") collect (point(get_predicate(mental_state (each)).values["location_value"]));
+	    list<point> empty_trucks <- get_beliefs_with_name(empty_food_location) collect (point(get_predicate(mental_state (each)).values["location_value"]));
+	    possible_trucks <- possible_trucks - empty_trucks;
+	    if (empty(possible_trucks)) {
+	        do remove_intention(is_eating, true); 
+	    } else {
+	        target <- (possible_trucks with_min_of (each distance_to self)).location;
+	    }
+	    do remove_intention(choose_food_truck, true); 
+    }
 }
 
 
@@ -111,4 +127,13 @@ species FoodTruck {
 	}
 }
 
+experiment Bdi type: gui {
+    output {
+	    display map type: opengl {
+	        species Bar ;
+	        species FoodTruck ;
+	        species guest;
+	    }
+	}
+}
 
