@@ -10,6 +10,10 @@ model BDI
 /* Insert your model definition here */
 
 global {
+	
+	string empty_food_location <- "empty_food_location";
+	string empty_bar_location <- "empty_bar_location";
+	
 	predicate is_eating <- new_predicate("is_eating");
 	predicate is_drinking <- new_predicate("is_drinking");
 	predicate is_dancing <- new_predicate("is_dancing");
@@ -25,6 +29,7 @@ global {
 	predicate choose_stage <- new_predicate("choose_stage");
 	predicate choose_food_truck <- new_predicate("choose_food_truck");
 	predicate choose_bar <- new_predicate("choose_bar");
+	
 	predicate stage_location <- new_predicate("stage_location");
 	predicate food_location <- new_predicate("food_location");
 	predicate bar_location <- new_predicate("bar_location");
@@ -34,7 +39,7 @@ global {
 //give the simple_bdi architecture to the miner agents
 species guest skills: [moving] control:simple_bdi {
 	point target;
-	float view_dist <- 1000.0;
+	float view_dist <- 100.0;
 	
 	init {
     	do add_desire(find_food);
@@ -46,21 +51,21 @@ species guest skills: [moving] control:simple_bdi {
     // A function executed at each iteration to update the agent's Belief base, to know the 
     // changes in its environment (the world, the other agents and itself). The agent can 
     // perceive other agents up to a fixed distance or inside a specific geometry.
-    perceive target: gold_mine where (each.quantity > 0) in: view_dist {
+    perceive target: FoodTruck where (each.quantity > 0) in: view_dist {
     	
     	// - Iterating through all gold mines. var:location means we are looking at "location" 
     	// of each element in the array.
-    	// - mine_at_location: name of the belief
-    	// - mine_at_location.values (a map) will have "location" stored
-	    focus id: mine_at_location var:location;
+    	// - stage_location: name of the belief
+    	// - stage_location.values (a map) will have "location" stored
+	    focus id: food_location var:location;
 	    ask myself {
-	        do remove_intention(find_gold, false);
+	        do remove_intention(find_food, false);
 	    }
     }
     
-    rule belief: stage_location new_desire: is_dancing strength: 2.0;
+    rule belief: stage_location new_desire: is_dancing strength: 4.0;
     rule belief: food_location new_desire: is_eating strength: 3.0;
-    rule belief: drink_location new_desire: is_drinking strength: 3.0;
+    rule belief: bar_location new_desire: is_drinking strength: 2.0;
     
     plan lets_wander intention: [find_friend, find_stage, find_bar, find_food] {
     	do wander;
@@ -78,7 +83,7 @@ species guest skills: [moving] control:simple_bdi {
 		            do add_belief(is_eating);
 		            ask current_food_truck {quantity <- quantity - 1;}    
 		        } else {
-		            do add_belief(new_predicate(empty_mine_location, ["location_value"::target]));
+		            do add_belief(new_predicate(empty_food_location, ["location_value"::target]));
 		        }
 		        target <- nil;
 	        }
@@ -89,7 +94,6 @@ species guest skills: [moving] control:simple_bdi {
 
 species Bar {
 	
-	int quantity;
 	int quantity <- 50;
 	
 	aspect base {
