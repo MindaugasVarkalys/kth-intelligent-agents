@@ -22,6 +22,9 @@ global {
 	predicate find_bar <- new_predicate("find_bar");
 	predicate find_friend <- new_predicate("find_friend");
 	
+	predicate choose_stage <- new_predicate("choose_stage");
+	predicate choose_food_store <- new_predicate("choose_food_store");
+	predicate choose_bar <- new_predicate("choose_bar");
 	predicate stage_location <- new_predicate("stage_location");
 	predicate food_location <- new_predicate("food_location");
 	predicate bar_location <- new_predicate("bar_location");
@@ -62,4 +65,29 @@ species guest skills: [moving] control:simple_bdi {
     plan lets_wander intention: [find_friend, find_stage, find_bar, find_food] {
     	do wander;
     }
+    
+    plan get_food intention:is_eating {
+	    if (target = nil) {
+	        do add_subintention(get_current_intention(),choose_food_store, true);
+	        do current_intention_on_hold();
+	    } else {
+	        do goto target: target;
+	        if (target = location)  {
+		        gold_mine current_mine <- gold_mine first_with (target = each.location);
+		        if current_mine.quantity > 0 {
+		            do add_belief(has_gold);
+		            ask current_mine {quantity <- quantity - 1;}    
+		        } else {
+		            do add_belief(new_predicate(empty_mine_location, ["location_value"::target]));
+		        }
+		        target <- nil;
+	        }
+	    }   
+    }
 }
+
+
+
+
+
+
