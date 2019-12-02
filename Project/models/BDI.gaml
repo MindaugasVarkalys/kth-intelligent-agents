@@ -23,7 +23,7 @@ global {
 	predicate find_friend <- new_predicate("find_friend");
 	
 	predicate choose_stage <- new_predicate("choose_stage");
-	predicate choose_food_store <- new_predicate("choose_food_store");
+	predicate choose_food_truck <- new_predicate("choose_food_truck");
 	predicate choose_bar <- new_predicate("choose_bar");
 	predicate stage_location <- new_predicate("stage_location");
 	predicate food_location <- new_predicate("food_location");
@@ -68,15 +68,15 @@ species guest skills: [moving] control:simple_bdi {
     
     plan get_food intention:is_eating {
 	    if (target = nil) {
-	        do add_subintention(get_current_intention(),choose_food_store, true);
+	        do add_subintention(get_current_intention(),choose_food_truck, true);
 	        do current_intention_on_hold();
 	    } else {
 	        do goto target: target;
-	        if (target = location)  {
-		        gold_mine current_mine <- gold_mine first_with (target = each.location);
-		        if current_mine.quantity > 0 {
-		            do add_belief(has_gold);
-		            ask current_mine {quantity <- quantity - 1;}    
+	        if (target = location)  { // If guest is at food store
+		        FoodTruck current_food_truck <- FoodTruck first_with (target = each.location);
+		        if current_food_truck.quantity > 0 {
+		            do add_belief(is_eating);
+		            ask current_food_truck {quantity <- quantity - 1;}    
 		        } else {
 		            do add_belief(new_predicate(empty_mine_location, ["location_value"::target]));
 		        }
@@ -87,7 +87,24 @@ species guest skills: [moving] control:simple_bdi {
 }
 
 
+species Bar {
+	
+	int quantity;
+	int quantity <- 50;
+	
+	aspect base {
+		draw triangle(5) color: #yellow;
+	}
+}
 
-
+species FoodTruck {
+	
+	bool isVegan <- flip(0.5);
+	int quantity <- 50;
+	
+	aspect base {
+		draw triangle(5) color: isVegan ? #green : #red;
+	}
+}
 
 
