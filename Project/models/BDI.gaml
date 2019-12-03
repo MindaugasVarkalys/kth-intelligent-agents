@@ -47,9 +47,9 @@ species guest skills: [moving] control:simple_bdi {
 	
 	init {
     	do add_desire(find_food);
-    	do add_desire(find_stage);
-    	do add_desire(find_bar);
-    	do add_desire(find_friend);
+    	// do add_desire(find_stage);
+    	// do add_desire(find_bar);
+    	// do add_desire(find_friend);
     }
     
     // A function executed at each iteration to update the agent's Belief base, to know the 
@@ -71,7 +71,7 @@ species guest skills: [moving] control:simple_bdi {
     rule belief: food_location new_desire: is_eating strength: 3.0;
     rule belief: bar_location new_desire: is_drinking strength: 2.0;
     
-    plan lets_wander intention: [find_friend, find_stage, find_bar, find_food] {
+    plan lets_wander intention: find_friend { // [find_friend, find_stage, find_bar, find_food] {
     	do wander;
     }
     

@@ -5,7 +5,7 @@
 * Tags: Tag1, Tag2, TagN
 ***/
 
-model BaseTask
+model Creative
 
 /* Insert your model definition here */
 
@@ -22,6 +22,8 @@ global {
 	int numberStages <- 3;
 	int numGuests <- 200;
 	int bandNumberN <- 0;
+	int sunLightAmount;
+	rgb backgroundColor;
 	
 	init {
 		create Stage number:numberStages returns: _stages;
@@ -60,6 +62,26 @@ global {
 			bandNumberN <- bandNumberN + 1;
 		}
 		return newBandMembers;
+	}
+	
+	int sunLight(int q) {
+		int dayTime <- time mod 24;
+		int sunLightInt;
+		if dayTime < 12 {
+			sunLightInt <- dayTime;
+		} else {
+			sunLightInt <- 24 - dayTime;
+		}
+		return sunLightInt;
+	}
+	
+	rgb sunLightRGB(int sunLightInteger) {
+		return rgb(255,255,255,int(sunLightInteger * 10.5));
+	}
+	
+	reflex calculateRGBBackground {
+		sunLightAmount <- sunLight(2);
+		backgroundColor <- sunLightRGB(sunLightAmount);
 	}
 	
 	reflex startNewConcert {
@@ -108,7 +130,7 @@ species Guest skills: [fipa, moving] {
 	
 	reflex targetReached when: target != nil {
 		if 
-			target is Stage and !(empty([target] at_distance (0.5 * Stage(target).soundDistance)))
+			(target is Stage and !(empty([target] at_distance (0.5 * Stage(target).soundDistance))))
 			or 
 			target.location - location = {0,0,0}
 			// or 
@@ -119,7 +141,7 @@ species Guest skills: [fipa, moving] {
 	}
 	
 	reflex moveAround when: target = nil {
-		// target.location <- {rnd(100), rnd(100), 1};
+		do wander;
 	}
 	
 	reflex gettingHungry {
@@ -133,13 +155,15 @@ species Guest skills: [fipa, moving] {
 		}
 	}
 	
-	reflex reachedFoodTruck when: !(empty(FoodTruck at_distance 2)) {
-		list<FoodTruck> nearFoodTrucks <- FoodTruck at_distance 2;
-		if nearFoodTrucks[0].isVegan = isVegan {
+	reflex reachedFoodTruck when: target != nil and target is FoodTruck and !(empty(FoodTruck at_distance 2)) {
+		FoodTruck nearFoodTruck <- (FoodTruck at_distance 2)[0];
+		if !(FoodTruck(target) != nearFoodTruck) {
+			return;
+		}
+		if nearFoodTruck.isVegan = isVegan {
 			happiness <- happiness + 6;
 			fullness <- 100;
 			target <- nil;
-			do wander;
 		} else {
 			target <- foodTrucks[rnd(0, length(foodTrucks) - 1)];
 		}
@@ -158,7 +182,7 @@ species Guest skills: [fipa, moving] {
 		// write "Near stage, but not dancing. Target: " + target;
 	}
 	
-	reflex offersGoingToBar when: target = nil and empty(Stage at_distance 20) and !empty(Guest at_distance 5) {
+	reflex offersGoingToBar when: target = nil and empty(Stage at_distance 20) and !empty(Guest at_distance 5) and (flip(sunLightAmount/24)) {
 		list<Guest> nearbyGuests <- Guest at_distance 5;
 		Guest selectedGuest <- nearbyGuests[rnd(0, length(nearbyGuests) - 1)];
 		Bar selectedBar <- bars[rnd(0, length(bars) - 1)];
@@ -189,9 +213,12 @@ species Guest skills: [fipa, moving] {
 		}
 	}
 	
-	reflex enjoyBar when: !(empty(Bar at_distance 2)) {
-		list<Bar> nearBars <- Bar at_distance 2;
-		do goto target: nearBars[0];
+	reflex enjoyBar when: target != nil and target is Bar and !(empty(Bar at_distance 2)) {
+		Bar nearBar <- (Bar at_distance 2)[0];
+		if !(Bar(target) != nearBar) {
+			return;
+		}
+		do goto target: nearBar;
 		do wander;
 		
 		happiness <- happiness + 4;
@@ -208,7 +235,7 @@ species Guest skills: [fipa, moving] {
 	}
 	
 	aspect base {
-		draw circle(1) color: rgb(0,0,255,int(happiness * 2.55)) border: #black;
+		draw circle(1) color: rgb(200,0,0,int(happiness * 2.55)) border: #white;
 	}
 }
 
@@ -300,7 +327,8 @@ species FoodTruck {
 
 experiment my_experiment type:gui {
 	output {
-		display my_display {
+		
+		display my_display background: backgroundColor {
 			species Stage aspect:base;
 			species BandMember aspect:base;
 			species Bar aspect:base;
@@ -316,3 +344,8 @@ experiment my_experiment type:gui {
     	}
 	}
 }
+
+
+
+
+
