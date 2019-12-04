@@ -18,6 +18,7 @@ global {
 	list<Stage> stages;
 	list<Guest> guests;
 	list<BandMember> bandMembers;
+	
 	int loudestSoundDistance <- 20;
 	int numberStages <- 3;
 	int numGuests <- 200;
@@ -26,7 +27,7 @@ global {
 	init {
 		create Stage number:numberStages returns: _stages;
 		create Guest number:numGuests returns: _guests;
-		create Bar number:3 returns: _bars;
+		create Bar number:2 returns: _bars;
 		create FoodTruck number:5 returns: _foodTrucks;
 		
 		bandMembers <- createNewBandMembers(_stages);
@@ -46,7 +47,7 @@ global {
 			string genre <- genres[rnd(0, length(genres) - 1)];
 			stage.genre <- genre;
 			stage.bandNumberPlaying <- bandNumberN;
-			int timeToPlay <- rnd(100,300);
+			int timeToPlay <- rnd(30,100);
 			create BandMember number:3 returns: _bandMembers;
 			loop bandMember over: _bandMembers {
 				bandMember.location <- {0,0,0};
@@ -72,9 +73,11 @@ global {
 species Guest skills: [fipa, moving] {
 	
 	int happiness <- 50;
-	agent target <- nil;
+	FestivalLocation target <- nil;
+	bool atTarget <- true;
 	bool isVegan <- flip(0.3);
-	int fullness <- rnd(1, 100);
+	float fullness <- float(rnd(1, 100));
+	int extravertLevel <- rnd(1, 100);
 	int starvingLevel <- 20;
 	string favoriteGenre <- genres[rnd(0, length(genres) - 1)];
 	
@@ -85,11 +88,11 @@ species Guest skills: [fipa, moving] {
 			happiness <- 100;
 		}
 		
-		if fullness < 0 {
-			fullness <- 0;
-		} else if fullness > 100 {
-			fullness <- 100;
-		}
+//		if fullness < 0 {
+//			fullness <- 0;
+//		} else if fullness > 100 {
+//			fullness <- 100;
+//		}
 	}
 	
 //	reflex printing {
@@ -102,77 +105,67 @@ species Guest skills: [fipa, moving] {
 //			;
 //	}
 	
-	reflex goingToTarget when: target != nil {
+	reflex goingToTarget when: !atTarget or (target != nil and target.location distance_to location > target.radius) {
 		do goto target: target;
 	}
 	
-	reflex targetReached when: target != nil {
-		if 
-			target is Stage and !(empty([target] at_distance (0.5 * Stage(target).soundDistance)))
-			or 
-			target.location - location = {0,0,0}
-			// or 
-			// [target] at_distance 2
-			{
+	reflex wanderAroundTarget when: atTarget {
+		do wander;
+		
+		if (target is FoodTruck) {
+			if (isVegan != FoodTruck(target).isVegan) {
 				target <- nil;
+				return;	
+			}
+			fullness <- 100.0;
+			happiness <- happiness + 1;
+		} else if (target is Stage) {
+			list<Guest> peopleAround <- Guest at_distance 5;
+			happiness <- happiness + int(length(peopleAround) / 10);
+		} else if (target is Bar) {
+			list<Guest> peopleAround <- Guest at_distance 5;
+			if (length(peopleAround) > 0) {
+				float avgExtravertLevel <- sum(peopleAround collect (each.extravertLevel - 50)) / length(peopleAround);
+				int barHappiness <- int((extravertLevel - 50) * avgExtravertLevel / 100);
+				happiness <- happiness + barHappiness; 
 			}	
+		}
 	}
 	
-	reflex moveAround when: target = nil {
-		// target.location <- {rnd(100), rnd(100), 1};
+	reflex targetReached when: !atTarget and target.location distance_to location < target.radius {
+		atTarget <- true;
 	}
 	
 	reflex gettingHungry {
-		fullness <- fullness - 1;
+		if (fullness > 0) {
+			fullness <- fullness - 0.1;
+		}
 	}
 	
 	reflex starving when: fullness < starvingLevel {
-		happiness <- happiness - 5;
+		happiness <- happiness - 1;
 		if !(target is FoodTruck) {
+			atTarget <- false;
 			target <- foodTrucks[rnd(0, length(foodTrucks) - 1)];
 		}
-	}
+	}	
 	
-	reflex reachedFoodTruck when: !(empty(FoodTruck at_distance 2)) {
-		list<FoodTruck> nearFoodTrucks <- FoodTruck at_distance 2;
-		if nearFoodTrucks[0].isVegan = isVegan {
-			happiness <- happiness + 6;
-			fullness <- 100;
-			target <- nil;
-			do wander;
-		} else {
-			target <- foodTrucks[rnd(0, length(foodTrucks) - 1)];
-		}
-	}
-	
-	reflex dancing when: target = nil and !(empty(Stage at_distance loudestSoundDistance)) {
-		list<Stage> stagesGuestCanHear <- (Stage where (each.soundDistance > int(each.location distance_to location)));
-		loop stage over: stagesGuestCanHear {
-			if stage.genre = favoriteGenre {
-				// write "At favourite stage";
-				happiness <- happiness + 4;
-				do wander;
-				return;
-			}
-		}
-		// write "Near stage, but not dancing. Target: " + target;
-	}
-	
-	reflex offersGoingToBar when: target = nil and empty(Stage at_distance 20) and !empty(Guest at_distance 5) {
-		list<Guest> nearbyGuests <- Guest at_distance 5;
-		Guest selectedGuest <- nearbyGuests[rnd(0, length(nearbyGuests) - 1)];
+	reflex offersGoingToBar when: atTarget and !empty(Guest at_distance 5) and flip((extravertLevel + happiness) / 200 * 0.01) {
+		Guest selectedGuest <- Guest at_distance 5 at 0;
 		Bar selectedBar <- bars[rnd(0, length(bars) - 1)];
 		do start_conversation with: [ to :: [selectedGuest], protocol :: 'fipa-query', performative :: 'propose', contents :: [favoriteGenre, selectedBar] ];
 	}
 	
-	reflex PersonAcceptedBarOffer when: !empty(accept_proposals) {
+	reflex guestAcceptedBarOffer when: !empty(accept_proposals) {
 		message accept_proposal <- accept_proposals at 0;
 		Bar proposedBar <- accept_proposal.contents[0];
+		do end_conversation with: [message :: accept_proposal, contents :: []];
 		target <- proposedBar;
-		happiness <- happiness + 6;
+		atTarget <- false;
+		happiness <- happiness + 1;
 	}
 	
-	reflex PersonDeclinedBarOffer when: !empty(reject_proposals) {
+	reflex guestDeclinedBarOffer when: !empty(reject_proposals) {
 		message reject_proposal <- reject_proposals at 0;
 		do end_conversation with: [message :: reject_proposal, contents :: []];
 		happiness <- happiness - 1;
@@ -180,58 +173,31 @@ species Guest skills: [fipa, moving] {
 	
 	reflex answerOffer when: !empty(proposes) {
 		message proposal <- proposes at 0;
-		if target != nil and proposal.contents[0] = favoriteGenre {
+		if atTarget and proposal.contents[0] = favoriteGenre {
 			Bar proposedBar <- proposal.contents[1];
 			do accept_proposal(message : proposal, contents : [proposedBar] );
 			target <- proposedBar;
+			atTarget <- false;
 		} else {
 			do reject_proposal(message : proposal, contents: [] );
 		}
 	}
 	
-	reflex enjoyBar when: !(empty(Bar at_distance 2)) {
-		list<Bar> nearBars <- Bar at_distance 2;
-		do goto target: nearBars[0];
-		do wander;
-		
-		happiness <- happiness + 4;
-		fullness <- fullness + 1;
-	}
-	
 	reflex read_inform_message when: !(empty(informs)) {		
 		loop i over: informs {
 			do end_conversation with: [message :: i, contents :: []];
-			if i.contents[1] = favoriteGenre and target = nil {
+			if i.contents[1] = favoriteGenre and atTarget {
 				target <- i.contents[0];
+				atTarget <- false;
 			}
 		}
 	}
 	
 	aspect base {
+//		draw circle(1) color: #black;
+//		draw circle(extravertLevel / 100.0) color: #white;
+//		draw circle(extravertLevel / 100.0) color: rgb(0,0,255,int(happiness * 2.55));
 		draw circle(1) color: rgb(0,0,255,int(happiness * 2.55)) border: #black;
-	}
-}
-
-species Stage skills: [fipa] {
-	
-	int soundDistance <- rnd(10, loudestSoundDistance);
-	string genre;
-	bool concertRunning <- false;
-	int bandNumberPlaying;
-	
-//	reflex concertIsOver when: flip(0.05) {
-//		genre <- genres[rnd(0, length(genres) - 1)];
-//		do start_conversation with: [ to :: bandMembers, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
-//	}
-	
-	reflex newConcert when: !concertRunning {
-		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
-		concertRunning <- true;
-	}
-	
-	aspect base {
-		draw square(5) color: #purple;
-		draw circle(soundDistance) color:rgb(#purple,0.5);	
 	}
 }
 
@@ -281,22 +247,64 @@ species BandMember skills: [moving, fipa] {
 	
 }
 
-species Bar {
+species FestivalLocation {
+	
+	int radius;
+	
+}
+
+species Bar parent: FestivalLocation {
+	
+	init {
+		radius <- 5;
+	}
 	
 	aspect base {
-		draw triangle(10) color: #yellow;
+		draw triangle(5) color: #yellow;
+		draw circle(radius) color:rgb(#purple,0.5);
 	}
 }
 
-species FoodTruck {
+species FoodTruck parent: FestivalLocation {
+	
+	init {
+		radius <- 5;
+	}
 	
 	bool isVegan <- flip(0.5);
 	
 	aspect base {
 		draw triangle(5) color: isVegan ? #green : #red;
+		draw circle(radius) color:rgb(#purple,0.5);
 	}
 }
 
+
+species Stage parent: FestivalLocation skills: [fipa] {
+	
+	init {
+		radius <- rnd(10,20);
+	}
+	
+	string genre;
+	bool concertRunning <- false;
+	int bandNumberPlaying;
+	
+//	reflex concertIsOver when: flip(0.05) {
+//		genre <- genres[rnd(0, length(genres) - 1)];
+//		do start_conversation with: [ to :: bandMembers, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
+//	}
+	
+	reflex newConcert when: !concertRunning {
+		do start_conversation with: [ to :: guests, protocol :: 'fipa-query', performative :: 'inform', contents :: [ self, genre ] ];
+		concertRunning <- true;
+	}
+	
+	aspect base {
+		draw square(5) color: #purple;
+		draw circle(radius) color:rgb(#purple,0.5);	
+	}
+}
 
 experiment my_experiment type:gui {
 	output {
