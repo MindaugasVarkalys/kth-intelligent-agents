@@ -14,6 +14,7 @@ global {
 	list<string> genres <- ["POP", "Rock", "Deuche Rap", "Disco"];
 	list<stage> stages;
 	list<bar> bars;
+	int bandNumber <- 1;
 	
 	init {
 		create guest number: 50;
@@ -38,6 +39,30 @@ global {
 	predicate friend <- new_predicate(friend_name);
 	predicate invite_to_bar <- new_predicate("invite_to_bar");
 	predicate go_to_bar <- new_predicate("go_to_bar");
+	
+	int createNewBandMembers(stage _stage) {
+		write "Start new concert";
+		_stage.genre <- genres[rnd(0, length(genres) - 1)];
+		_stage.bandNumber <- bandNumber;
+		int timeToPlay <- rnd(30,100);
+		create band_member number:3 returns: _bandMembers;
+		loop bandMember over: _bandMembers {
+			bandMember.bandNumber <- bandNumber;
+			bandMember._stage <- _stage;
+			bandMember.location <- {0,0,0};
+			bandMember.target <- _stage.location;
+			bandMember.timeToPlay <- timeToPlay;
+		}
+		bandNumber <- bandNumber + 1;
+		return 0;
+	}
+	
+	reflex startNewConcert {
+		list<stage> emptyStages <- (stage where (each.bandNumber = 0));
+		loop _stage over: emptyStages {
+			int a <- createNewBandMembers(_stage);	
+		}
+	}
 }
 
 species guest skills: [moving] control:simple_bdi {
@@ -47,7 +72,7 @@ species guest skills: [moving] control:simple_bdi {
 	float view_dist <- 10.0;
 	point target;
 	
-	int fullness <- rnd(10, 1000);
+	int fullness <- rnd(10, 100);
 	int bar_time;
 	
 	init {
@@ -109,7 +134,7 @@ species guest skills: [moving] control:simple_bdi {
 	    } else {
 	        do goto target: target;
 	        if (target = location) {
-		        fullness <- 1000;
+		        fullness <- 100;
 		        target <- nil;
 		        do remove_belief(is_hungry);
 		        do remove_intention(eat, true);        
@@ -189,7 +214,7 @@ species guest skills: [moving] control:simple_bdi {
 	aspect base {
 		draw circle(1) color: rgb(0,0,255/* ,int(happiness * 2.55)*/) border: #black;
 		//draw circle(view_dist) color: rgb(255,0,0,100);
-		draw name color: #black;
+		// draw name color: #black;
 	}
 }
 
@@ -204,11 +229,8 @@ species food_truck {
 
 species stage {
 	int radius <- rnd(10,20);
-	string genre <- genres[rnd(0, length(genres) - 1)];
-	
-	reflex newConcert when: flip(0.01) {
-		genre <- genres[rnd(0, length(genres) - 1)];
-	}
+	int bandNumber <- 0;
+	string genre;
 	
 	aspect base {
 		draw square(5) color: #purple;
@@ -225,6 +247,44 @@ species bar {
 	}
 }
 
+species band_member skills: [moving] {
+
+	int bandNumber;
+	int timeToPlay;
+	point target;
+	stage _stage;
+
+	reflex goingToTarget when: target != nil {
+		do goto target: target;
+		do wander;
+	}
+	
+	reflex targetReached when: target != nil and (target distance_to location < 1) {
+		if target = {1000, 1000, 1000} {
+			do die;
+			return;
+		}
+		target <- nil;
+	}
+	
+	reflex chillingAtTarget when: target = nil {
+		do goto target: _stage.location;
+		do wander;
+		timeToPlay <- timeToPlay - 1;
+	}
+	
+	reflex finishedPlaying when: target = nil and timeToPlay < 0 {
+		target <- {1000, 1000, 1000};
+		if (_stage.bandNumber = bandNumber) {
+			_stage.bandNumber <- 0; 
+		}
+	}
+	
+	aspect base {
+		draw circle(1) color:rgb(#black);	
+	}
+}
+
 experiment Bdi type: gui {
     output {
 	    display map {
@@ -232,6 +292,7 @@ experiment Bdi type: gui {
 	        species stage aspect: base;
 	        species guest aspect: base;
 			species bar aspect: base;
+			species band_member aspect: base;
 	    }
 	}
 }
