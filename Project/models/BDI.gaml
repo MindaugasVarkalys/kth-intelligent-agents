@@ -15,6 +15,7 @@ global {
 	list<stage> stages;
 	list<bar> bars;
 	int bandNumber <- 1;
+	int numOfGuests <- 50;
 	
 	init {
 		create guest number: 50;
@@ -24,6 +25,10 @@ global {
 		stages <- _stages;
 		bars <- _bars;
 	}
+	
+    int totalHappiness <- 0 update: int(sum(guest collect (each.happiness)) / numOfGuests);
+    int totalFullness <- 0 update: int(sum(guest collect (each.fullness / 10)) / numOfGuests);
+	
 	string food_location_name <- "food_location";
 	string stage_location_name <- "stage_location";
 	string friend_name <- "friend";
@@ -68,16 +73,27 @@ global {
 species guest skills: [moving] control:simple_bdi {
 	string genre <- genres[rnd(0, length(genres) - 1)];
 	bool is_vegan <- flip(0.5);
+	int extravertLevel <- rnd(1, 100);
 	
 	float view_dist <- 10.0;
 	point target;
 	
-	int fullness <- rnd(10, 100);
+	int fullness <- rnd(10, 1000);
 	int bar_time;
+	
+	int happiness <- 50;
 	
 	init {
     	do add_desire(predicate: wander, strength: 1.0);
     }
+    
+    reflex equalifyValues {
+		if happiness < 0 {
+			happiness <- 0;
+		} else if happiness > 100 {
+			happiness <- 100;
+		}
+	}
     
     perceive target: food_truck where (each.is_vegan = is_vegan) in: view_dist {
     	write name + " Food truck";
@@ -92,6 +108,9 @@ species guest skills: [moving] control:simple_bdi {
 			do remove_intention(go_to_bar, true);
 			do remove_intention(dance, false);
 		}
+		if (fullness <= 0 and happiness > 0) {
+    		happiness <- happiness - 5;
+    	}
 		if (fullness >= 0) {
 	    	fullness <- fullness - 1;
     	}
@@ -113,12 +132,14 @@ species guest skills: [moving] control:simple_bdi {
     
     rule belief: is_hungry new_desire: eat strength: 10.0;
     rule belief: stage_location new_desire: dance strength: 5.0;
-    rule belief: friend new_desire: invite_to_bar strength: 3.0;
+    rule belief: friend new_desire: invite_to_bar strength: 3.0 when: flip(extravertLevel / 100.0);
      
     plan wander intention: wander {
     	write name + " wander";
     	do wander amplitude: 60.0;
     }
+    
+    
     
     plan eat intention:eat {
     	write name + " Eat";
@@ -134,7 +155,8 @@ species guest skills: [moving] control:simple_bdi {
 	    } else {
 	        do goto target: target;
 	        if (target = location) {
-		        fullness <- 100;
+		        fullness <- 1000;
+		        happiness <- happiness + 5;
 		        target <- nil;
 		        do remove_belief(is_hungry);
 		        do remove_intention(eat, true);        
@@ -157,6 +179,7 @@ species guest skills: [moving] control:simple_bdi {
 	    } else {
 	    	stage target_stage <- stages first_with (target = each.location);
 	    	if (target_stage != nil) {
+	    		happiness <- happiness + 1;
 		    	if (target distance_to location > target_stage.radius) {
 		    		do goto target: target;	
 		    	} else {
@@ -175,9 +198,10 @@ species guest skills: [moving] control:simple_bdi {
     	write name + " invite to bar";
 	    list<guest> my_friends <- list<guest>((social_link_base where (each.liking > 0.1)) collect each.agent);
 	    point nearest_bar <- bars collect (each.location) closest_to(self);
-	    int new_bar_time <- rnd(1, 10);
+	    int new_bar_time <- rnd(1, 5);
 	    ask my_friends {
 	    	if (target = nil) {
+	    		happiness <- happiness + 1;
 	    		write myself.name + " Inviting to bar " + name;
 	    		do add_desire(predicate: go_to_bar, strength: 7.0);
 	    		do remove_intention(dance, false);
@@ -188,6 +212,8 @@ species guest skills: [moving] control:simple_bdi {
 	    			bar_time <- new_bar_time;
 	    			do add_desire(predicate: go_to_bar, strength: 7.0);
 	    		}
+	    	} else {
+	    		happiness <- happiness - 10;
 	    	}
     	}
     	do remove_intention(invite_to_bar, true);
@@ -196,6 +222,7 @@ species guest skills: [moving] control:simple_bdi {
     plan go_to_bar intention: go_to_bar {
     	write name + " go to bar";
     	bar target_bar <- bars first_with (target = each.location);
+    	happiness <- happiness + 1;
 	    if (target distance_to location > target_bar.radius) {
 	    	write name + " going to bar";
 	   		do goto target: target;
@@ -212,7 +239,7 @@ species guest skills: [moving] control:simple_bdi {
     }
     
 	aspect base {
-		draw circle(1) color: rgb(0,0,255/* ,int(happiness * 2.55)*/) border: #black;
+		draw circle(1) color: rgb(0,0,255, int(happiness * 2.55)) border: #black;
 		//draw circle(view_dist) color: rgb(255,0,0,100);
 		// draw name color: #black;
 	}
@@ -294,6 +321,13 @@ experiment Bdi type: gui {
 			species bar aspect: base;
 			species band_member aspect: base;
 	    }
+	    
+		display chart {
+        	chart "Chart1" type: series style: spline {
+     		   	data "Total happiness" value: totalHappiness color: #green;
+        		data "Total fullness" value: totalFullness color: #red;
+        	}
+    	}
 	}
 }
 
